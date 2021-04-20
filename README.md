@@ -8,16 +8,12 @@
 
 ## Data preparing
 
-* First, download a dataset, e.g. apple2orange
-
-```bash
-$ bash download_dataset.sh apple2orange
-```
+* First, download a hazy dataset, e.g. NTIRE 2018/2020 or RESIDE
 
 * Write the dataset to tfrecords
 
-```bash
-$ python build_data.py --X_input_dir X/A --X_output_file XOUT/x.tfrecords --Y_input_dir Y/B --Y_output_file YOUT/y.tfrecords
+```
+python build_data.py --X_input_dir X/A --X_output_file XOUT/x.tfrecords --Y_input_dir Y/B --Y_output_file YOUT/y.tfrecords
 ```
 
 Check `$ python build_data.py --help` for more details.
