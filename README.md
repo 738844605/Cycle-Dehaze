@@ -5,34 +5,83 @@
 * Tensorboard 1.9.0
 * Python 3.5.6
 * Opencv-python 4.0.0.21
-
+## FILE STRUCTURE
+```
+Cycle-Dehaze-master
+|-- README.md
+|-- X
+    |-- A|-- *.png
+|-- Y
+    |-- B|-- *.png
+|-- XOUT
+    |-- x.tfrecords
+|-- YOUT
+    |-- y.tfrecords
+|-- pretrained
+    |-- *.pb
+|-- checkpoints
+|-- samples
+    |-- *.png
+```
 ## Data preparing
 
 * First, download a hazy dataset, e.g. NTIRE 2018/2020 or RESIDE
-
+* Hazy images in X/A for training, Clear images in Y/B for training
 * Write the dataset to tfrecords
-
 ```
 python build_data.py --X_input_dir X/A --X_output_file XOUT/x.tfrecords --Y_input_dir Y/B --Y_output_file YOUT/y.tfrecords
 ```
 
-Check `$ python build_data.py --help` for more details.
+Check `python build_data.py --help` for more details.
 
 ## Training
 
-```bash
-$ python train.py --X=XOUT/x.tfrecords --Y=YOUT/y.tfrecords
+```
+python train.py --X=XOUT/x.tfrecords --Y=YOUT/y.tfrecords
 ```
 
-If you want to change some default settings, you can pass those to the command line, such as:
-
-```bash
-$ python3 train.py  \
-    --X=data/tfrecords/horse.tfrecords \
-    --Y=data/tfrecords/zebra.tfrecords
+If you halted the training process and want to continue training, then you can try:
+```
+python train.py --load_model 20191123-1530
 ```
 
-Here is the list of arguments:
+## Check TensorBoard to see training progress and generated images
+
+```
+tensorboard --logdir checkpoints/20191123-1530
+```
+## Export model
+You can export from a checkpoint to a standalone GraphDef file as follow:
+
+```
+python export_graph.py --checkpoint_dir checkpoints/${datetime} \
+                          --XtoY_model apple2orange.pb \
+                          --YtoX_model orange2apple.pb \
+                          --image_size 256
+```
+```
+e.g. python export_graph.py --checkpoint_dir checkpoints/20191205-1022 --XtoY_model x2y.pb --YtoX_model y2x.pb --image_size [256,256]
+```
+
+## Inference and upsamling
+After exporting model, you can use it for inference. For example:
+
+```
+python inference.py --model pretrained/Hazy2GT_indoor.pb \
+                     --input input_haze.jpg \
+                     --output output_dehaze.jpg \
+                     --image_size 256
+```
+
+Use matlab code to improve the resolution of results:
+```
+laplacian.m
+```
+## You also can test your own images:
+```
+python test.py
+```
+## Here is the list of arguments:
 ```
 usage: train.py [-h] [--batch_size BATCH_SIZE] [--image_size IMAGE_SIZE]
                 [--use_lsgan [USE_LSGAN]] [--nouse_lsgan]
@@ -70,50 +119,22 @@ optional arguments:
   --load_model LOAD_MODEL
                         folder of saved model that you wish to continue
                         training (e.g. 20170602-1936), default: None
+build_data.py:
+  --X_input_dir: X input directory, default: data/apple2orange/trainA
+    (default: 'data/apple2orange/trainA')
+  --X_output_file: X output tfrecords file, default:
+    data/tfrecords/apple.tfrecords
+    (default: 'data/tfrecords/apple.tfrecords')
+  --Y_input_dir: Y input directory, default: data/apple2orange/trainB
+    (default: 'data/apple2orange/trainB')
+  --Y_output_file: Y output tfrecords file, default:
+    data/tfrecords/orange.tfrecords
+    (default: 'data/tfrecords/orange.tfrecords')
 ```
-
-Check TensorBoard to see training progress and generated images.
-
-```
-$ tensorboard --logdir checkpoints/${datetime}
-```
-
-If you halted the training process and want to continue training, then you can set the `load_model` parameter like this.
-
-```bash
-$ python3 train.py  \
-    --load_model 20170602-1936
-```
-
-Here are some funny screenshots from TensorBoard when training orange -> apple:
-
-![train_screenshot](samples/train_screenshot.png)
-
 
 ### Notes
 * If high constrast background colors between input and generated images are observed (e.g. black becomes white), you should restart your training!
 * Train several times to get the best models.
-
-## Export model
-You can export from a checkpoint to a standalone GraphDef file as follow:
-
-```bash
-$ python3 export_graph.py --checkpoint_dir checkpoints/${datetime} \
-                          --XtoY_model apple2orange.pb \
-                          --YtoX_model orange2apple.pb \
-                          --image_size 256
-```
-
-
-## Inference
-After exporting model, you can use it for inference. For example:
-
-```bash
-python3 inference.py --model pretrained/apple2orange.pb \
-                     --input input_sample.jpg \
-                     --output output_sample.jpg \
-                     --image_size 256
-```
 
 ## Pretrained models
 My pretrained models are available at https://github.com/vanhuyz/CycleGAN-TensorFlow/releases
@@ -131,4 +152,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## License
 This project is licensed under the MIT License - see the <a href="https://github.com/engindeniz/Cycle-Dehaze/blob/master/LICENSE">LICENSE</a> file for details.
-
