@@ -1,54 +1,138 @@
-# Cycle-Dehaze: Enhanced CycleGAN for Single Image Dehazing
-
-This reposotory is our project for <a href="http://www.vision.ee.ethz.ch/ntire18/" target="_blank">NTIRE 2018 Challenge on Image Dehazing</a>. 
-
-<a href="https://arxiv.org/abs/1805.05308" target="_blank">Our paper</a> published in CVPR 2018 Workshop <a href="http://www.vision.ee.ethz.ch/ntire18/" target="_blank">(3rd NTIRE)</a>. Please cite our paper, if it is helpful for your research.
-
-```sh
-@inproceedings{engin2018cycle,
-  title={Cycle-Dehaze: Enhanced CycleGAN for Single Image Dehazing},
-  author={Engin, Deniz and Gen{\c{c}}, An{\i}l and Ekenel, Haz{\i}m Kemal},
-  booktitle={The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) Workshops},
-  year={2018}
-}
-```
-
-## Model Architecture
-
-<img src="figs/model.png" width="600">
-
+#Cycle-Dehaze: Enhanced CycleGAN for Single Image Dehazing
 ## Prerequisites
 
-* TensorFlow 1.4.1 or later
-* Python 3
-* MATLAB 
+* TensorFlow-gpu 1.9.0
+* Tensorboard 1.9.0
+* Python 3.5.6
+* Opencv-python 4.0.0.21
 
-Our code is tested under Ubuntu 16.04 environment with Titan X GPUs.
+## Data preparing
 
-## Demo
+* First, download a dataset, e.g. apple2orange
 
-* Test the model for Track 1: Indoor
-
-```sh
- sh demo.sh data/indoor results/indoor models/Hazy2GT_indoor.pb
+```bash
+$ bash download_dataset.sh apple2orange
 ```
 
-* Test the model for Track 2: Outdoor
+* Write the dataset to tfrecords
 
-```sh
-sh demo.sh data/outdoor results/outdoor models/Hazy2GT_outdoor.pb
+```bash
+$ python build_data.py --X_input_dir X/A --X_output_file XOUT/x.tfrecords --Y_input_dir Y/B --Y_output_file YOUT/y.tfrecords
 ```
 
-*  You can use this model for your own images. 
+Check `$ python build_data.py --help` for more details.
 
-```sh
-sh demo.sh input_folder output_folder model_name
+## Training
+
+```bash
+$ python train.py --X=XOUT/x.tfrecords --Y=YOUT/y.tfrecords
 ```
+
+If you want to change some default settings, you can pass those to the command line, such as:
+
+```bash
+$ python3 train.py  \
+    --X=data/tfrecords/horse.tfrecords \
+    --Y=data/tfrecords/zebra.tfrecords
+```
+
+Here is the list of arguments:
+```
+usage: train.py [-h] [--batch_size BATCH_SIZE] [--image_size IMAGE_SIZE]
+                [--use_lsgan [USE_LSGAN]] [--nouse_lsgan]
+                [--norm NORM] [--lambda1 LAMBDA1] [--lambda2 LAMBDA2]
+                [--learning_rate LEARNING_RATE] [--beta1 BETA1]
+                [--pool_size POOL_SIZE] [--ngf NGF] [--X X] [--Y Y]
+                [--load_model LOAD_MODEL]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --batch_size BATCH_SIZE
+                        batch size, default: 1
+  --image_size IMAGE_SIZE
+                        image size, default: 256
+  --use_lsgan [USE_LSGAN]
+                        use lsgan (mean squared error) or cross entropy loss,
+                        default: True
+  --nouse_lsgan
+  --norm NORM           [instance, batch] use instance norm or batch norm,
+                        default: instance
+  --lambda1 LAMBDA1     weight for forward cycle loss (X->Y->X), default: 10.0
+  --lambda2 LAMBDA2     weight for backward cycle loss (Y->X->Y), default:
+                        10.0
+  --learning_rate LEARNING_RATE
+                        initial learning rate for Adam, default: 0.0002
+  --beta1 BETA1         momentum term of Adam, default: 0.5
+  --pool_size POOL_SIZE
+                        size of image buffer that stores previously generated
+                        images, default: 50
+  --ngf NGF             number of gen filters in first conv layer, default: 64
+  --X X                 X tfrecords file for training, default:
+                        data/tfrecords/apple.tfrecords
+  --Y Y                 Y tfrecords file for training, default:
+                        data/tfrecords/orange.tfrecords
+  --load_model LOAD_MODEL
+                        folder of saved model that you wish to continue
+                        training (e.g. 20170602-1936), default: None
+```
+
+Check TensorBoard to see training progress and generated images.
+
+```
+$ tensorboard --logdir checkpoints/${datetime}
+```
+
+If you halted the training process and want to continue training, then you can set the `load_model` parameter like this.
+
+```bash
+$ python3 train.py  \
+    --load_model 20170602-1936
+```
+
+Here are some funny screenshots from TensorBoard when training orange -> apple:
+
+![train_screenshot](samples/train_screenshot.png)
+
+
+### Notes
+* If high constrast background colors between input and generated images are observed (e.g. black becomes white), you should restart your training!
+* Train several times to get the best models.
+
+## Export model
+You can export from a checkpoint to a standalone GraphDef file as follow:
+
+```bash
+$ python3 export_graph.py --checkpoint_dir checkpoints/${datetime} \
+                          --XtoY_model apple2orange.pb \
+                          --YtoX_model orange2apple.pb \
+                          --image_size 256
+```
+
+
+## Inference
+After exporting model, you can use it for inference. For example:
+
+```bash
+python3 inference.py --model pretrained/apple2orange.pb \
+                     --input input_sample.jpg \
+                     --output output_sample.jpg \
+                     --image_size 256
+```
+
+## Pretrained models
+My pretrained models are available at https://github.com/vanhuyz/CycleGAN-TensorFlow/releases
+
+## Contributing
+Please open an issue if you have any trouble or found anything incorrect in my code :)
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## References
+
+* CycleGAN paper: https://arxiv.org/abs/1703.10593
+* Official source code in Torch: https://github.com/junyanz/CycleGAN
 
 ## License
 This project is licensed under the MIT License - see the <a href="https://github.com/engindeniz/Cycle-Dehaze/blob/master/LICENSE">LICENSE</a> file for details.
-
-## Acknowledgments
-
-The code is based on <a href="https://github.com/vanhuyz/CycleGAN-TensorFlow" target="_blank">CycleGAN-TensorFlow</a> implementation. 
 
