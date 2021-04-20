@@ -1,13 +1,9 @@
 import tensorflow as tf
 import ops
-import subprocess as sb
 import utils
 from reader import Reader
 from discriminator import Discriminator
 from generator import Generator
-import numpy as np
-
-import vgg16
 
 REAL_LABEL = 0.9
 
@@ -16,14 +12,13 @@ class CycleGAN:
                X_train_file='',
                Y_train_file='',
                batch_size=1,
-               #image_size1=256,
-               #image_size2=256,
+               #image_size=256,
                image_size=(256,256),
                use_lsgan=True,
                norm='instance',
-               lambda1=10.0,
-               lambda2=10.0,
-               learning_rate=1e-4,
+               lambda1=10,
+               lambda2=10,
+               learning_rate=2e-4,
                beta1=0.5,
                ngf=64
               ):
@@ -32,7 +27,8 @@ class CycleGAN:
       X_train_file: string, X tfrecords file for training
       Y_train_file: string Y tfrecords file for training
       batch_size: integer, batch size
-      image_size: integer, image size
+      #image_size: integer, image size
+      image_size: tuple of integers, (image width, image heigth)
       lambda1: integer, weight for forward cycle loss (X->Y->X)
       lambda2: integer, weight for backward cycle loss (Y->X->Y)
       use_lsgan: boolean
@@ -46,8 +42,6 @@ class CycleGAN:
     self.use_lsgan = use_lsgan
     use_sigmoid = not use_lsgan
     self.batch_size = batch_size
-    #self.image_size1 = image_size1
-    #self.image_size2 = image_size2
     self.image_size = image_size
     self.learning_rate = learning_rate
     self.beta1 = beta1
@@ -56,27 +50,21 @@ class CycleGAN:
 
     self.is_training = tf.placeholder_with_default(True, shape=[], name='is_training')
 
-
-    #self.G = Generator('G', self.is_training, ngf=ngf, norm=norm, image_size1=image_size1, image_size2=image_size2)
     self.G = Generator('G', self.is_training, ngf=ngf, norm=norm, image_size=image_size)
     self.D_Y = Discriminator('D_Y',
         self.is_training, norm=norm, use_sigmoid=use_sigmoid)
-    #self.F = Generator('F', self.is_training, ngf=ngf, norm=norm, image_size1=image_size1, image_size2=image_size2)
     self.F = Generator('F', self.is_training, norm=norm, image_size=image_size)
     self.D_X = Discriminator('D_X',
         self.is_training, norm=norm, use_sigmoid=use_sigmoid)
 
     #self.fake_x = tf.placeholder(tf.float32,
-     #   shape=[batch_size, image_size1, image_size2, 3])
+        #shape=[batch_size, image_size, image_size, 3])
     self.fake_x = tf.placeholder(tf.float32,
         shape=[batch_size, image_size[0], image_size[1], 3])
-    #self.fake_y = tf.placeholder(tf.float32,
-      #  shape=[batch_size, image_size1, image_size2, 3])
+   #self.fake_y = tf.placeholder(tf.float32,
+        #shape=[batch_size, image_size, image_size, 3])
     self.fake_y = tf.placeholder(tf.float32,
         shape=[batch_size, image_size[0], image_size[1], 3])
-
-
-    self.vgg = vgg16.Vgg16()
 
   def model(self):
     X_reader = Reader(self.X_train_file, name='X',
@@ -87,22 +75,19 @@ class CycleGAN:
     x = X_reader.feed()
     y = Y_reader.feed()
 
-
     cycle_loss = self.cycle_consistency_loss(self.G, self.F, x, y)
-    perceptual_loss = self.perceptual_similarity_loss(self.G, self.F, x, y, self.vgg)
-    pixel_loss = self.pixel_wise_loss(self.G,self.F, x, y)
+
     # X -> Y
     fake_y = self.G(x)
     G_gan_loss = self.generator_loss(self.D_Y, fake_y, use_lsgan=self.use_lsgan)
-    G_loss = G_gan_loss + cycle_loss + perceptual_loss + pixel_loss
+    G_loss =  G_gan_loss + cycle_loss
     D_Y_loss = self.discriminator_loss(self.D_Y, y, self.fake_y, use_lsgan=self.use_lsgan)
 
     # Y -> X
     fake_x = self.F(y)
     F_gan_loss = self.generator_loss(self.D_X, fake_x, use_lsgan=self.use_lsgan)
-    F_loss = F_gan_loss + cycle_loss + perceptual_loss + pixel_loss
+    F_loss = F_gan_loss + cycle_loss
     D_X_loss = self.discriminator_loss(self.D_X, x, self.fake_x, use_lsgan=self.use_lsgan)
-
 
     # summary
     tf.summary.histogram('D_Y/true', self.D_Y(y))
@@ -115,8 +100,6 @@ class CycleGAN:
     tf.summary.scalar('loss/F', F_gan_loss)
     tf.summary.scalar('loss/D_X', D_X_loss)
     tf.summary.scalar('loss/cycle', cycle_loss)
-    tf.summary.scalar('loss/perceptual_loss', perceptual_loss)
-    tf.summary.scalar('loss/pixel_loss', pixel_loss)
 
     tf.summary.image('X/generated', utils.batch_convert2int(self.G(x)))
     tf.summary.image('X/reconstruction', utils.batch_convert2int(self.F(self.G(x))))
@@ -158,6 +141,7 @@ class CycleGAN:
     D_Y_optimizer = make_optimizer(D_Y_loss, self.D_Y.variables, name='Adam_D_Y')
     F_optimizer =  make_optimizer(F_loss, self.F.variables, name='Adam_F')
     D_X_optimizer = make_optimizer(D_X_loss, self.D_X.variables, name='Adam_D_X')
+
     with tf.control_dependencies([G_optimizer, D_Y_optimizer, F_optimizer, D_X_optimizer]):
       return tf.no_op(name='optimizers')
 
@@ -200,36 +184,3 @@ class CycleGAN:
     backward_loss = tf.reduce_mean(tf.abs(G(F(y))-y))
     loss = self.lambda1*forward_loss + self.lambda2*backward_loss
     return loss
-
-  def perceptual_similarity_loss(self, G, F, x, y, vgg):
-    x1 = tf.image.resize_images(x, [224,224]) # to feed vgg, need resize
-    y1 = tf.image.resize_images(y, [224,224])
-
-    rx = F(G(x)) #create reconstructed images
-    ry = G(F(y))
-
-    rx1 = tf.image.resize_images(rx, [224,224]) # to feed vgg, need resize
-    ry1 = tf.image.resize_images(ry, [224,224])
-
-    fx1, fx2 = vgg.build(x1) # extract features from vgg
-    fy1, fy2 = vgg.build(y1)
-
-    frx1, frx2 = vgg.build(rx1) # extract features from vgg (2nd pool & 5th pool
-    fry1, fry2 = vgg.build(ry1)
-
-    m1 = tf.reduce_mean(tf.squared_difference(fx1, frx1)) # mse difference
-    m2 = tf.reduce_mean(tf.squared_difference(fx2, frx2))
-
-    m3 = tf.reduce_mean(tf.squared_difference(fy1, fry1))
-    m4 = tf.reduce_mean(tf.squared_difference(fy2, fry2))
-
-    perceptual_loss = (m1 + m2 + m3 + m4)*0.00001*0.5 # calculate perceptual loss and give weight (0.00001*0.5)
-    return perceptual_loss
-
-  def pixel_wise_loss(self, G, F, x, y):
-    rx = F(G(x))
-    ry = G(F(y))
-    pixel_wise_loss = tf.reduce_mean(tf.squared_difference(x, rx)) + tf.reduce_mean(tf.squared_difference(y, ry))
-    return 10*pixel_wise_loss
-
-

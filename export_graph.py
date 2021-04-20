@@ -18,8 +18,11 @@ FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string('checkpoint_dir', '', 'checkpoints directory path')
 tf.flags.DEFINE_string('XtoY_model', 'apple2orange.pb', 'XtoY model name, default: apple2orange.pb')
 tf.flags.DEFINE_string('YtoX_model', 'orange2apple.pb', 'YtoX model name, default: orange2apple.pb')
-tf.flags.DEFINE_integer('image_size1', '256', 'image size, default: 256')
-tf.flags.DEFINE_integer('image_size2', '256', 'image size, default: 256')
+#tf.flags.DEFINE_integer('image_size', '256', 'image size, default: 256')
+
+tf.flags.DEFINE_integer('image_width', '256', 'image width, default: 256')####
+tf.flags.DEFINE_integer('image_height', '256', 'image height, default: 256')####
+
 tf.flags.DEFINE_integer('ngf', 64,
                         'number of gen filters in first conv layer, default: 64')
 tf.flags.DEFINE_string('norm', 'instance',
@@ -29,9 +32,11 @@ def export_graph(model_name, XtoY=True):
   graph = tf.Graph()
 
   with graph.as_default():
-    cycle_gan = CycleGAN(ngf=FLAGS.ngf, norm=FLAGS.norm, image_size1=FLAGS.image_size1, image_size2=FLAGS.image_size2)
+    #cycle_gan = CycleGAN(ngf=FLAGS.ngf, norm=FLAGS.norm, image_size=FLAGS.image_size)
+    cycle_gan = CycleGAN(ngf=FLAGS.ngf, norm=FLAGS.norm, image_size=(FLAGS.image_width, FLAGS.image_height))
 
-    input_image = tf.placeholder(tf.float32, shape=[FLAGS.image_size1, FLAGS.image_size2, 3], name='input_image')
+    #input_image = tf.placeholder(tf.float32, shape=[FLAGS.image_size, FLAGS.image_size, 3], name='input_image')
+    input_image = tf.placeholder(tf.float32, shape=[FLAGS.image_width, FLAGS.image_height, 3], name='input_image')
     cycle_gan.model()
     if XtoY:
       output_image = cycle_gan.G.sample(tf.expand_dims(input_image, 0))

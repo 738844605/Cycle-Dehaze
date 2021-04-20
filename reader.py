@@ -2,7 +2,9 @@ import tensorflow as tf
 import utils
 
 class Reader():
-  def __init__(self, tfrecords_file, image_size1=256, image_size2=256, min_queue_examples=1000, batch_size=1, num_threads=8, name=''):
+  #def __init__(self, tfrecords_file, image_size=256,
+  def __init__(self, tfrecords_file, image_size=(256,256),
+    min_queue_examples=1000, batch_size=1, num_threads=8, name=''):
     """
     Args:
       tfrecords_file: string, tfrecords file path
@@ -11,14 +13,12 @@ class Reader():
       num_threads: integer, number of preprocess threads
     """
     self.tfrecords_file = tfrecords_file
-    self.image_size1 = image_size1
-    self.image_size2 = image_size2
+    self.image_size = image_size
     self.min_queue_examples = min_queue_examples
     self.batch_size = batch_size
     self.num_threads = num_threads
     self.reader = tf.TFRecordReader()
-    self.name = name
-
+    self.name = name 
   def feed(self):
     """
     Returns:
@@ -37,7 +37,7 @@ class Reader():
           })
 
       image_buffer = features['image/encoded_image']
-      image = tf.image.decode_jpeg(image_buffer, channels=3)
+      image = tf.image.decode_bmp(image_buffer, channels=3)
       image = self._preprocess(image)
       images = tf.train.shuffle_batch(
             [image], batch_size=self.batch_size, num_threads=self.num_threads,
@@ -49,9 +49,12 @@ class Reader():
     return images
 
   def _preprocess(self, image):
-    image = tf.image.resize_images(image, size=(self.image_size1, self.image_size2))
+    #image = tf.image.resize_images(image, size=(self.image_size, self.image_size))
+    print(image.shape)
+    image = tf.image.resize_images(image, size=(self.image_size[0], self.image_size[1]))
     image = utils.convert2float(image)
-    image.set_shape([self.image_size1, self.image_size2, 3])
+    #image.set_shape([self.image_size, self.image_size, 3])
+    image.set_shape([self.image_size[0], self.image_size[1], 3])
     return image
 
 def test_reader():

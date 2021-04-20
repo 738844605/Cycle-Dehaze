@@ -1,4 +1,5 @@
 import tensorflow as tf
+
 ## Layers: follow the naming convention used in the original paper
 ### Generator layers
 def c7s1_k(input, k, reuse=False, norm='instance', activation='relu', is_training=True, name='c7s1_k'):
@@ -54,7 +55,6 @@ def dk(input, k, reuse=False, norm='instance', is_training=True, name=None):
     output = tf.nn.relu(normalized)
     return output
 
-
 def Rk(input, k,  reuse=False, norm='instance', is_training=True, name=None):
   """ A residual block that contains two 3x3 convolutional layers
       with the same number of filters on both layer
@@ -94,7 +94,7 @@ def n_res_blocks(input, reuse, norm='instance', is_training=True, n=6):
     input = output
   return output
 
-def uk(input, k, reuse=False, norm='instance', is_training=True, name=None, output_size1=None, output_size2=None):
+def uk(input, k, reuse=False, norm='instance', is_training=True, name=None, output_size=None):
   """ A 3x3 fractional-strided-Convolution-BatchNorm-ReLU layer
       with k filters, stride 1/2
   Args:
@@ -104,7 +104,8 @@ def uk(input, k, reuse=False, norm='instance', is_training=True, name=None, outp
     is_training: boolean or BoolTensor
     reuse: boolean
     name: string, e.g. 'c7sk-32'
-    output_size: integer, desired output size of layer
+    #output_size: integer, desired output size of layer
+    output_size: tuple of integers (width, height), desired output size of layer
   Returns:
     4D tensor
   """
@@ -114,17 +115,18 @@ def uk(input, k, reuse=False, norm='instance', is_training=True, name=None, outp
     weights = _weights("weights",
       shape=[3, 3, k, input_shape[3]])
 
-    if not output_size1:
-      output_size1 = input_shape[1]*2
-      output_size2 = input_shape[2]*2
-    output_shape = [input_shape[0], output_size1, output_size2, k]
+    if not output_size:
+      #output_size = input_shape[1]*2
+    #output_shape = [input_shape[0], output_size, output_size, k]
+      output_size = (input_shape[1]*2, input_shape[2]*2)
+    output_shape = [input_shape[0], output_size[0], output_size[1], k]
+
     fsconv = tf.nn.conv2d_transpose(input, weights,
         output_shape=output_shape,
         strides=[1, 2, 2, 1], padding='SAME')
     normalized = _norm(fsconv, is_training, norm)
     output = tf.nn.relu(normalized)
     return output
-
 
 ### Discriminator layers
 def Ck(input, k, slope=0.2, stride=2, reuse=False, norm='instance', is_training=True, name=None):
@@ -151,7 +153,6 @@ def Ck(input, k, slope=0.2, stride=2, reuse=False, norm='instance', is_training=
     normalized = _norm(conv, is_training, norm)
     output = _leaky_relu(normalized, slope)
     return output
-
 
 def last_conv(input, reuse=False, use_sigmoid=False, name=None):
   """ Last convolutional layer of discriminator network
